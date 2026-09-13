@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: simplehtml-app
-          image: kubregistry.io/aks-simplehtml:latest
+          image: kubregistry.io/Hello-world:latest
           ports:
             - containerPort: 80
 
