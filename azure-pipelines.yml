@@ -6,7 +6,7 @@ pool:
 
 variables:
   imageRepository: 'Hello-world'
-  containerRegistry: 'kubregistry'
+  containerRegistry: 'kubregistry.io'
   dockerRegistryServiceConnection: 'ACR-Service-Connection'
 
   azureServiceConnection: 'Azure-Service-Connection'
