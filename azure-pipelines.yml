@@ -1,19 +1,98 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - main
 
 pool:
   vmImage: ubuntu-latest
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+variables:
+  imageRepository: 'Hello-world'
+  containerRegistry: 'kubregistry'
+  dockerRegistryServiceConnection: 'ACR-Service-Connection'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+  azureServiceConnection: 'Azure-Service-Connection'
+  aksResourceGroup: 'aks-demo'
+  aksClusterName: 'aks-demo'
+
+stages:
+
+# ==========================================
+# Stage 1 - Build and Push Docker Image
+# ==========================================
+
+- stage: Build
+  displayName: 'Build and Push'
+
+  jobs:
+  - job: BuildAndPush
+    displayName: 'Build Docker Image'
+
+    steps:
+
+    - checkout: self
+
+    - task: Docker@2
+      displayName: 'Build and Push Docker Image'
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: Dockerfile
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          latest
+          $(Build.BuildId)
+
+
+# ==========================================
+# Stage 2 - Deploy to AKS
+# ==========================================
+
+- stage: Deploy
+  displayName: 'Deploy to AKS'
+
+  dependsOn: Build
+  condition: succeeded()
+
+  jobs:
+  - job: DeployToAKS
+    displayName: 'Deploy Application'
+
+    steps:
+
+    - checkout: self
+
+    - task: AzureCLI@2
+      displayName: 'Deploy to AKS'
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: bash
+        scriptLocation: inlineScript
+
+        inlineScript: |
+
+          echo "Getting AKS credentials..."
+
+          az aks get-credentials \
+            --resource-group $(aksResourceGroup) \
+            --name $(aksClusterName) \
+            --overwrite-existing
+
+          echo "Applying Kubernetes configuration..."
+
+          kubectl apply -f deployment.yaml
+
+          echo "Updating deployment with new image..."
+
+          kubectl set image deployment/simplehtml-app \
+            simplehtml-app=$(containerRegistry)/$(imageRepository):$(Build.BuildId)
+
+          echo "Waiting for deployment rollout..."
+
+          kubectl rollout status deployment/simplehtml-app
+
+          echo "Checking pods..."
+
+          kubectl get pods
+
+          echo "Checking service..."
+
+          kubectl get service simplehtml-service
